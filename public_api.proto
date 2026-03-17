@@ -843,6 +843,7 @@ message ListCrdtDocumentKeysResponse {
 message CrdtDocumentKey {
   string       document_uuid = 1;
   CrdtDataType data_type     = 2;
+  bytes        canonical_head = 3; // Current canonical server head, empty when unavailable
 }
 
 // ========== Things Sync Messages ==========
