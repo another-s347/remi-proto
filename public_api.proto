@@ -971,6 +971,7 @@ message ChatStartInput {
   repeated ChatHistoryMessage history  = 1;
   ChatInputMessage            current  = 2;
   google.protobuf.Struct      metadata = 3;
+  repeated google.protobuf.Struct extra_tools = 4; // remi-agentloop ToolDefinition JSON objects supplied by the outer runtime.
 }
 
 // Resume after external tool execution, matching remi-agentloop LoopInput::Resume.
