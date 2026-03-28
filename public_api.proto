@@ -142,8 +142,14 @@ service PublicService {
   // Documents are synced in priority order: root -> collection -> thing_markdown
   rpc SyncCrdtDocument(SyncCrdtDocumentRequest) returns (SyncCrdtDocumentResponse);
 
+  // Sync multiple CRDT documents in a single roundtrip.
+  rpc SyncCrdtDocuments(SyncCrdtDocumentsRequest) returns (SyncCrdtDocumentsResponse);
+
   // Get full snapshot of a single CRDT document
   rpc GetCrdtDocumentSnapshot(GetCrdtDocumentSnapshotRequest) returns (GetCrdtDocumentSnapshotResponse);
+
+  // Get full snapshots for multiple CRDT documents in a single roundtrip.
+  rpc GetCrdtDocumentSnapshots(GetCrdtDocumentSnapshotsRequest) returns (GetCrdtDocumentSnapshotsResponse);
 
   // List all CRDT document keys for the user
   rpc ListCrdtDocumentKeys(ListCrdtDocumentKeysRequest) returns (ListCrdtDocumentKeysResponse);
@@ -818,6 +824,28 @@ message SyncCrdtDocumentResponse {
   string         last_sync_at  = 2;
 }
 
+message SyncCrdtDocumentInput {
+  string       document_uuid = 1;
+  CrdtDataType data_type     = 2;
+  bytes        sync_message  = 3;
+}
+
+message SyncCrdtDocumentsRequest {
+  string                       device_id = 1;
+  repeated SyncCrdtDocumentInput documents = 2;
+}
+
+message SyncCrdtDocumentResult {
+  string         document_uuid = 1;
+  CrdtDataType   data_type     = 2;
+  repeated bytes sync_messages = 3;
+  string         last_sync_at  = 4;
+}
+
+message SyncCrdtDocumentsResponse {
+  repeated SyncCrdtDocumentResult documents = 1;
+}
+
 // Get full snapshot of a CRDT document
 message GetCrdtDocumentSnapshotRequest {
   string       device_id        = 1;
@@ -829,6 +857,28 @@ message GetCrdtDocumentSnapshotRequest {
 message GetCrdtDocumentSnapshotResponse {
   bytes  automerge_doc = 1; // Full Automerge document bytes
   string last_sync_at  = 2;
+}
+
+message CrdtDocumentRef {
+  string       document_uuid = 1;
+  CrdtDataType data_type     = 2;
+}
+
+message GetCrdtDocumentSnapshotsRequest {
+  string                   device_id        = 1;
+  repeated CrdtDocumentRef documents        = 2;
+  bool                     reset_sync_state = 3;
+}
+
+message CrdtDocumentSnapshot {
+  string       document_uuid = 1;
+  CrdtDataType data_type     = 2;
+  bytes        automerge_doc = 3;
+  string       last_sync_at  = 4;
+}
+
+message GetCrdtDocumentSnapshotsResponse {
+  repeated CrdtDocumentSnapshot snapshots = 1;
 }
 
 // List all CRDT document keys
