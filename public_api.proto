@@ -189,6 +189,15 @@ service PublicService {
   // Stops the agent execution for the given session
   rpc ChatInterrupt(ChatInterruptRequest) returns (ChatInterruptResponse);
 
+  // Upload a chat session bundle for debugging or feedback review.
+  rpc UploadChatSessionBundle(UploadChatSessionBundleRequest) returns (UploadChatSessionBundleResponse);
+
+  // List uploaded chat session bundles belonging to the authenticated user.
+  rpc ListChatSessionBundleUploads(ListChatSessionBundleUploadsRequest) returns (ListChatSessionBundleUploadsResponse);
+
+  // Fetch a single uploaded chat session bundle belonging to the authenticated user.
+  rpc GetChatSessionBundleUpload(GetChatSessionBundleUploadRequest) returns (GetChatSessionBundleUploadResponse);
+
   // ========== URI Resolution ==========
 
   // Resolve a URI (URL, remi://, etc.) and return structured metadata.
@@ -1022,6 +1031,7 @@ message ChatStartInput {
   ChatInputMessage            current  = 2;
   google.protobuf.Struct      metadata = 3;
   repeated google.protobuf.Struct extra_tools = 4; // remi-agentloop ToolDefinition JSON objects supplied by the outer runtime.
+  google.protobuf.Struct      user_state = 5;
 }
 
 // Resume after external tool execution, matching remi-agentloop LoopInput::Resume.
@@ -1105,6 +1115,50 @@ message ChatInterruptResponse {
   string message = 2; // Optional message about the interrupt
 }
 
+message UploadChatSessionBundleRequest {
+  string                 session_id    = 1;
+  string                 device_id     = 2;
+  string                 title         = 3;
+  string                 feedback_kind = 4;
+  string                 bundle_json   = 5;
+  google.protobuf.Struct metadata      = 6;
+}
+
+message UploadChatSessionBundleResponse {
+  string upload_id   = 1;
+  string received_at = 2;
+}
+
+message ChatSessionBundleUploadInfo {
+  string upload_id     = 1;
+  string session_id    = 2;
+  string device_id     = 3;
+  string title         = 4;
+  string feedback_kind = 5;
+  string created_at    = 6;
+  string updated_at    = 7;
+}
+
+message ListChatSessionBundleUploadsRequest {
+  int32 limit  = 1;
+  int32 offset = 2;
+}
+
+message ListChatSessionBundleUploadsResponse {
+  repeated ChatSessionBundleUploadInfo uploads     = 1;
+  int32                               total_count = 2;
+}
+
+message GetChatSessionBundleUploadRequest {
+  string upload_id = 1;
+}
+
+message GetChatSessionBundleUploadResponse {
+  ChatSessionBundleUploadInfo upload    = 1;
+  string                     bundle_json = 2;
+  google.protobuf.Struct     metadata    = 3;
+}
+
 message ChatRunStartEvent {
   string                 thread_id = 1;
   string                 run_id    = 2;
@@ -1144,6 +1198,75 @@ message ChatToolResultEvent {
   string result    = 3;
 }
 
+message ChatSubSessionStartEvent {}
+
+message ChatSubSessionDeltaEvent {
+  string content = 1;
+}
+
+message ChatSubSessionThinkingStartEvent {}
+
+message ChatSubSessionThinkingEndEvent {
+  string content = 1;
+}
+
+message ChatSubSessionToolCallStartEvent {
+  string id        = 1;
+  string tool_name = 2;
+}
+
+message ChatSubSessionToolCallDeltaEvent {
+  string id              = 1;
+  string arguments_delta = 2;
+}
+
+message ChatSubSessionToolDeltaEvent {
+  string id        = 1;
+  string tool_name = 2;
+  string delta     = 3;
+}
+
+message ChatSubSessionToolResultEvent {
+  string id        = 1;
+  string tool_name = 2;
+  string result    = 3;
+}
+
+message ChatSubSessionTurnStartEvent {
+  uint32 turn = 1;
+}
+
+message ChatSubSessionDoneEvent {
+  string final_output = 1;
+}
+
+message ChatSubSessionErrorEvent {
+  string message = 1;
+}
+
+message ChatSubSessionEvent {
+  string parent_tool_call_id = 1;
+  string sub_session_id      = 2;
+  string sub_run_id          = 3;
+  string agent_name          = 4;
+  string title               = 5;
+  uint32 depth               = 6;
+
+  oneof event {
+    ChatSubSessionStartEvent         start             = 10;
+    ChatSubSessionDeltaEvent         delta             = 11;
+    ChatSubSessionThinkingStartEvent thinking_start    = 12;
+    ChatSubSessionThinkingEndEvent   thinking_end      = 13;
+    ChatSubSessionToolCallStartEvent tool_call_start   = 14;
+    ChatSubSessionToolCallDeltaEvent tool_call_delta   = 15;
+    ChatSubSessionToolDeltaEvent     tool_delta        = 16;
+    ChatSubSessionToolResultEvent    tool_result       = 17;
+    ChatSubSessionTurnStartEvent     turn_start        = 18;
+    ChatSubSessionDoneEvent          done              = 19;
+    ChatSubSessionErrorEvent         error             = 20;
+  }
+}
+
 message ChatInterruptInfo {
   string                 interrupt_id = 1;
   string                 tool_call_id = 2;
@@ -1170,7 +1293,9 @@ message ChatErrorEvent {
   string code    = 2;
 }
 
-message ChatDoneEvent {}
+message ChatDoneEvent {
+  google.protobuf.Struct state = 1;
+}
 
 message ChatCancelledEvent {}
 
@@ -1203,6 +1328,7 @@ message ChatStreamEvent {
     ChatCancelledEvent         cancelled           = 14;
     ChatNeedToolExecutionEvent need_tool_execution = 15;
     ChatCustomEvent            custom              = 16;
+    ChatSubSessionEvent        sub_session         = 17;
   }
 }
 
