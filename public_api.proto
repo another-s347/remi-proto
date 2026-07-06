@@ -10,10 +10,8 @@ option java_multiple_files = true;
 import "remi_options.proto";
 import "google/protobuf/struct.proto";
 
-// Triggers are rule-based and stored as JSON configuration evaluated with CEL.
-
 // Unified Public API Service
-// Combines Authentication, Telemetry, and Trigger management
+// Combines authentication, telemetry, sync, chat feedback, media, and app keys.
 // All operations require appropriate authentication (JWT for authenticated operations)
 service PublicService {
   // ========== Authentication Operations ==========
@@ -61,20 +59,6 @@ service PublicService {
   // Query if a newer app version is available.
   // This is intentionally unauthenticated so clients can update even when auth is broken.
   rpc GetAppUpdate(GetAppUpdateRequest) returns (GetAppUpdateResponse);
-
-  // ========== Trigger Management Operations ==========
-
-  // Upload a new trigger using streaming (requires authentication, user_id from session)
-  rpc UploadTriggerStream(stream UploadTriggerChunk) returns (UploadTriggerResponse);
-
-  // List user's own triggers (requires authentication)
-  rpc ListTriggers(ListTriggersRequest) returns (ListTriggersResponse);
-
-  // Get trigger artifacts using streaming (requires authentication)
-  rpc GetTriggerStream(GetTriggerRequest) returns (stream GetTriggerChunk);
-
-  // List user's own installations (requires authentication)
-  rpc ListInstallations(ListInstallationsRequest) returns (ListInstallationsResponse);
 
   // ========== Things CRDT V3 Multi-Document Sync ==========
 
@@ -135,11 +119,6 @@ service PublicService {
   // Revoke an API key (requires authentication)
   rpc RevokeApiKey(RevokeApiKeyRequest) returns (RevokeApiKeyResponse);
 
-  // ========== Cross-Device Trigger Reporting ==========
-
-  // Report that a trigger was fired on this device so the server can fan-out
-  // the event to the user's other devices (requires authentication).
-  rpc ReportTriggerFired(ReportTriggerFiredRequest) returns (ReportTriggerFiredResponse);
 }
 
 // ========== Authentication Messages ==========
@@ -275,7 +254,6 @@ message TelemetryReport {
   uint64                   event_count  = 3;
   repeated MonitoringEvent events       = 4 [(remi.options.remi_skip_log) = true];
   bool                     manual       = 5;
-  string                   trigger      = 6;
 }
 
 message ReportAck {
@@ -336,118 +314,6 @@ message GetAppUpdateResponse {
   string release_notes       = 7;
   bool   force_update        = 8;
   string channel             = 9;
-}
-
-// ========== Trigger Management Messages ==========
-
-message UploadTriggerResponse {
-  string uuid       = 1;
-  string created_at = 2;
-  string message    = 3;
-}
-
-// Request to list triggers
-message ListTriggersRequest {
-  string search_query = 1;  // Optional search term;
-  int32  limit        = 2;  // Maximum number of results;
-  int32  offset       = 3;  // Offset for pagination;
-  string device_id    = 4;  // Required: only returns triggers bound to this device;
-  // Only returns current user's triggers
-}
-
-message TriggerInfo {
-  string uuid           = 1;
-  string name           = 2;
-  string user_request   = 3;
-  string event_analysis = 4;
-  int32  version        = 5;
-  string created_at     = 6;
-  string updated_at     = 7;
-  string device_id      = 8;
-  // Rule-based trigger configuration (JSON string)
-  string rule_config_json = 9;
-}
-
-message ListTriggersResponse {
-  repeated TriggerInfo triggers    = 1;
-  int32                total_count = 2;  // Number of triggers in this response (not total in database);
-}
-
-// Request to get a specific trigger
-message GetTriggerRequest {
-  string uuid      = 1;
-  string device_id = 2; // Required: must match trigger's bound device
-  // Only allows access to current user's triggers
-}
-
-// Request to list installations
-message ListInstallationsRequest {
-  string trigger_uuid = 1;  // Optional: filter by trigger (must be user's own trigger);
-  string device_id    = 2;  // Optional: filter by device (must be user's own device);
-  int32  limit        = 3;
-  int32  offset       = 4;
-}
-
-message InstallationInfo {
-  string trigger_uuid = 1;
-  string platform     = 2;
-  string device_id    = 3;
-  string created_at   = 4;
-  string updated_at   = 5;
-}
-
-message ListInstallationsResponse {
-  repeated InstallationInfo installations = 1;
-  int32                     total_count   = 2;  // Number of installations in this response (not total in database);
-}
-
-// Streaming message for uploading triggers (public API)
-message UploadTriggerChunk {
-  // Metadata sent in first chunk (user_id is extracted from auth token)
-  message Metadata {
-    string uuid           = 1;
-    string name           = 2;
-    string user_request   = 3;
-    string event_analysis = 4;
-    int32  version        = 5;
-
-    oneof publish_binding {
-      string bind_thing_uuid      = 6;
-      string bind_collection_uuid = 7;
-    }
-
-    // Rule-based trigger configuration (JSON string)
-    // When set, this is a rule-based trigger that uses CEL expressions
-    string rule_config_json = 8;
-
-    // Required: bind this trigger to a specific device.
-    string device_id = 9;
-
-    // Rule-based triggers only.
-  }
-
-  Metadata metadata = 1;
-}
-
-// Streaming message for downloading triggers (public API)
-message GetTriggerChunk {
-  // Metadata sent in first chunk
-  message Metadata {
-    string uuid           = 1;
-    string name           = 2;
-    string user_request   = 3;
-    string event_analysis = 4;
-    int32  version        = 5;
-    string created_at     = 6;
-    string updated_at     = 7;
-    // Rule-based trigger configuration (JSON string)
-    string rule_config_json = 8;
-
-    // Device this trigger is bound to.
-    string device_id = 9;
-  }
-
-  Metadata metadata = 1;
 }
 
 // ========== CRDT V3 Multi-Document Sync Messages ==========
@@ -676,19 +542,3 @@ message RevokeApiKeyRequest {
 message RevokeApiKeyResponse {
   string message = 1;
 }
-
-// ========== Cross-Device Trigger Reporting ==========
-
-message ReportTriggerFiredRequest {
-  // UUID of the trigger that fired.
-  string trigger_id   = 1;
-  // Human-readable trigger name — carried in the fan-out event so receivers
-  // can display it without a separate lookup.
-  string trigger_name = 2;
-  // device_id of the device that fired the trigger.  Excluded from its own
-  // FCM / Realtime fan-out so the originating device is not double-notified.
-  string device_id    = 3;
-}
-
-message ReportTriggerFiredResponse {}
-
