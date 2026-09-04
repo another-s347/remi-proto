@@ -318,12 +318,13 @@ message GetAppUpdateResponse {
 
 // ========== CRDT V3 Multi-Document Sync Messages ==========
 
-// CRDT document data types (sync priority: root=0, collection=1, thing_markdown=2)
+// CRDT document data types (sync priority: root=0, collection=1, thing_markdown=2, view=3)
 enum CrdtDataType {
   CRDT_DATA_TYPE_UNSPECIFIED    = 0;
   CRDT_DATA_TYPE_ROOT           = 1; // Root document: list of collection UUIDs
   CRDT_DATA_TYPE_COLLECTION     = 2; // Collection document: collection meta + thing metas
   CRDT_DATA_TYPE_THING_MARKDOWN = 3; // ThingMarkdown document: content for a single thing
+  CRDT_DATA_TYPE_VIEW           = 4; // View definition: query, data schema, and Rendera template
 }
 
 // Sync a single CRDT document
